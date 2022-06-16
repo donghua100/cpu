@@ -4,11 +4,13 @@ INC_PATH ?=
 
 VERILATOR = verilator
 VERILATOR_CFLAGS += --MMD --build --cc \
-					-O3 --x-assign fast --x-initial fast --noassert
+					-O3 --x-assign fast --x-initial fast --noassert \
+					--trace
 
 BUILD_DIR = ./build
 OBJ_DIR = $(BUILD_DIR)/obj_dir
 BIN = $(BUILD_DIR)/$(TOPNAME)
+DUMP_FILE = $(BUILD_DIR)/dump.vcd
 default: $(BIN)
 
 $(shell mkdir -p $(BUILD_DIR))
@@ -41,17 +43,15 @@ $(BIN): $(VSRCS) $(CSRCS) $(NVBOARD_ARCHIVE)
 all: default
 
 run: $(BIN)
-	@$^
+	@$^ +trace
+
+
+sim:$(DUMP_FILE)
+	$(call git_commit, "sim RTL") # DO NOT REMOVE THIS LINE!!!
+	@gtkwave $^
+	
 
 clean:
 	rm -rf $(BUILD_DIR)
-
-sim:
-	$(call git_commit, "sim RTL") # DO NOT REMOVE THIS LINE!!!
-	verilator -Wall --cc --exe --build --trace csrc/main.cpp vsrc/top.v vsrc/switch
-	./obj_dir/Vtop +trace
-	gtkwave logs/sim.vcd
-	
-
 
 include ../Makefile
