@@ -15,7 +15,7 @@ VSRCS = $(shell find $(abspath $(VSRC_DIR)) -name "*.v")
 CSRCS = $(shell find $(abspath ./riscv/src/cc) -name "*.cc" -or -name "*.c" -or -name "*.cpp")
 INCFLAGS = $(addprefix -I, $(INC_PATH))
 CFLAGS += $(INCFLAGS)
-DUMPFILE = $(BUILD_DIR)/dump.vad
+DUMPFILE = $(BUILD_DIR)/dump.vcd
 #LDFLAGS +=
 $(BIN): $(VSRCS) $(CSRCS)
 	@rm -rf $(OBJ_DIR)

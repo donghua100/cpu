@@ -46,6 +46,8 @@ void reset(int n){
 
 
 static const uint32_t img [] = {
+	0x00000093, //addi x1 x0 0
+	0x00108093,	//addi x1 x1 1 
   0x00000297,  // auipc t0,0
   0x0002b823,  // sd  zero,16(t0)
   0x0102b503,  // ld  a0,16(t0)
@@ -59,9 +61,11 @@ int main(){
 	sim_init();
 	reset(10);
 	int n = 2;
-	while(1){
+	while(n>0){
 		top->io_inst = pmem_read(top->io_pc,4);
-
+		step_dump_wave();
+		single_cycle();
+		n--;
 	}
 	step_dump_wave();
 	sim_exit();
