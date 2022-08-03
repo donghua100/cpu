@@ -1,3 +1,5 @@
+#include "macro.h"
+#include "memory/paddr.h"
 #include "utils.h"
 #include <cpu/cpu.h>
 #include <cpu/decode.h>
@@ -18,9 +20,16 @@ static bool g_print_step = false;
 void device_update();
 bool test_chanage();
 // here mycode
+#define IRING_BUFSIZE 5
+static char rinsts[IRING_BUFSIZE][128];
+static int r = 0;
+
 
 static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
 #ifdef CONFIG_ITRACE_COND
+	memset(rinsts[r],' ',4);
+	strcpy(rinsts[r++] + 4,_this->logbuf);
+	r = r%IRING_BUFSIZE;
   if (ITRACE_COND) { log_write("%s\n", _this->logbuf); }
 #endif
   if (g_print_step) { IFDEF(CONFIG_ITRACE, puts(_this->logbuf)); }
@@ -31,6 +40,7 @@ static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
 	  printf("watchpoint changed\n");
   }
 #endif
+
 }
 
 static void exec_once(Decode *s, vaddr_t pc) {
@@ -58,6 +68,24 @@ static void exec_once(Decode *s, vaddr_t pc) {
   disassemble(p, s->logbuf + sizeof(s->logbuf) - p,
       MUXDEF(CONFIG_ISA_x86, s->snpc, s->pc), (uint8_t *)&s->isa.inst.val, ilen);
 #endif
+//   char *q = s->logbuf;
+//   q += snprintf(q,sizeof(s->logbuf),FMT_WORD ":",s->pc);
+//   int instlen = s->snpc - s->pc;
+//   uint8_t *insts = (uint8_t *)&s->isa.inst.val;
+//   for (int j = instlen - 1; j>=0; j--){
+// 	  q += snprintf(q,4," %02x",insts[j]);
+//   }
+//   int instlen_max = MUXDEF(CONFIG_ISA_x86, 8, 4);
+//   int s_len = instlen_max -instlen;
+//   if (s_len < 0) s_len = 0;
+//   s_len = s_len*3 + 1;
+//   memset(q,' ',s_len);
+//   q += s_len;
+// #ifndef CONFIG_ITRACE
+//   void disassemble(char *str,int size,uint64_t pc,uint8_t *code,int nbyte);
+// #endif
+//   disassemble(q,s->logbuf + sizeof(s->logbuf) - q,
+// 		  MUXDEF(CONFIG_ISA_x86, s->snpc,s->pc),(uint8_t *)&s->isa.inst.val,instlen);
 }
 
 static void execute(uint64_t n) {
@@ -78,6 +106,7 @@ static void statistic() {
   Log("total guest instructions = " NUMBERIC_FMT, g_nr_guest_inst);
   if (g_timer > 0) Log("simulation frequency = " NUMBERIC_FMT " inst/s", g_nr_guest_inst * 1000000 / g_timer);
   else Log("Finish running in less than 1 us and can not calculate the simulation frequency");
+  get_mtrace();
 }
 
 void assert_fail_msg() {
@@ -102,6 +131,7 @@ void cpu_exec(uint64_t n) {
   uint64_t timer_end = get_time();
   g_timer += timer_end - timer_start;
 
+
   switch (nemu_state.state) {
     case NEMU_RUNNING: nemu_state.state = NEMU_STOP; break;
 
@@ -111,6 +141,14 @@ void cpu_exec(uint64_t n) {
            (nemu_state.halt_ret == 0 ? ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN) :
             ANSI_FMT("HIT BAD TRAP", ANSI_FG_RED))),
           nemu_state.halt_pc);
+		if (nemu_state.state == NEMU_ABORT || nemu_state.halt_ret!=0){
+			memmove(rinsts[(r-1+IRING_BUFSIZE)%IRING_BUFSIZE],"-->",3);
+			for (int i = 0; i < IRING_BUFSIZE; i++){
+				printf("%s\n",rinsts[i]);
+			}
+		}
+
+
       // fall through
     case NEMU_QUIT: statistic();
   }
