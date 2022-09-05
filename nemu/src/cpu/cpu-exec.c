@@ -1,3 +1,5 @@
+#include "common.h"
+#include "cpu/ifetch.h"
 #include "macro.h"
 #include "memory/paddr.h"
 #include "utils.h"
@@ -24,6 +26,11 @@ bool test_chanage();
 static char rinsts[IRING_BUFSIZE][128];
 static int r = 0;
 
+#define FBUF_SIZE 1000
+static char ftrace[FBUF_SIZE][128];
+static int fr = 0;
+
+int level = 0;
 
 static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
 #ifdef CONFIG_ITRACE_COND
@@ -68,6 +75,39 @@ static void exec_once(Decode *s, vaddr_t pc) {
   disassemble(p, s->logbuf + sizeof(s->logbuf) - p,
       MUXDEF(CONFIG_ISA_x86, s->snpc, s->pc), (uint8_t *)&s->isa.inst.val, ilen);
 #endif
+
+#ifdef CONFIG_FTRACE
+  extern int elf_read;
+  assert(elf_read);
+  void elf_func_name(uint64_t addr,char *name);
+  unsigned instval = s->isa.inst.val;
+  if (instval == 0x00008067 || BITS(instval, 6, 0)==0b1101111 || 
+		  (BITS(instval, 6, 0) == 0b1100111 && BITS(instval, 14, 12)==0b000))
+  {
+	char * ftp = ftrace[fr++];
+	// printf("fr = %d,level = %d\n",fr,level);
+  	char name[128];
+  	if (instval==0x00008067){
+  	    elf_func_name(s->pc,name);
+  	    level--;
+		ftp += sprintf(ftp,"0x%016lx:",s->pc);
+		for (int i = 0; i < level;i++) ftp += sprintf(ftp,"  ");
+  	    ftp += sprintf(ftp,"ret [%s]",name);
+		printf("%s\n",ftrace[fr-1]);
+  	}
+  	else if(BITS(instval,6,0)==0b1101111 || 
+  	  	  (BITS(instval,6,0)==0b1100111 && BITS(instval,14,12)==0b000)){
+  	    // printf("pc = 0x%016lx,dnpc = 0x%016lx\n",s->pc,s->dnpc);
+  	    elf_func_name(s->dnpc,name);
+		ftp += sprintf(ftp,"0x%016lx:",s->pc);
+		for (int i = 0; i < level;i++) ftp += sprintf(ftp,"  ");
+  	    ftp += sprintf(ftp,"call [%s@0x%016lx]",name,s->dnpc);
+		printf("%s\n",ftrace[fr-1]);
+  	    level++;
+  	}
+  }
+#endif
+
 //   char *q = s->logbuf;
 //   q += snprintf(q,sizeof(s->logbuf),FMT_WORD ":",s->pc);
 //   int instlen = s->snpc - s->pc;
@@ -87,7 +127,6 @@ static void exec_once(Decode *s, vaddr_t pc) {
 //   disassemble(q,s->logbuf + sizeof(s->logbuf) - q,
 // 		  MUXDEF(CONFIG_ISA_x86, s->snpc,s->pc),(uint8_t *)&s->isa.inst.val,instlen);
 }
-
 static void execute(uint64_t n) {
   Decode s;
   for (;n > 0; n --) {
@@ -146,6 +185,11 @@ void cpu_exec(uint64_t n) {
 			for (int i = 0; i < IRING_BUFSIZE; i++){
 				printf("%s\n",rinsts[i]);
 			}
+#ifdef CONFIG_FTRACE
+			for (int i =0; i < fr;i++){
+				printf("%s\n",ftrace[i]);
+			}
+#endif
 		}
 
 
